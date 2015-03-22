@@ -1,0 +1,130 @@
+---
+title: "Machine Learning Project - Building a model to predict exercise manner"
+author: "S.N"
+date: "Sunday, March 22, 2015"
+output: html_document
+---
+
+##Purpose
+To predict the manner in which 6 participants have exercised based on the given dataset generated from accelerometers on the belt, forearm, arm, and dumbell of the participants. There are five different possible manners, 1 is the correct manner while the other 4 are incorrect: A,B,C,D,E. This is 'classe' variable in the dataset which will be the outcome while the other variables in the dataset are predictors
+
+##Method
+1. Tidy the data set
+
+A number of variables have empty observations and DIV/0. This is replaced by entering NA in lieu of these observations. There are some variables which have no observations at all. These will be removed for the training dataset.
+
+```{r eval=FALSE}
+#Load data
+training <- read.csv(file="pml-training.csv",header=TRUE)
+testing <- read.csv(file="pml-testing.csv",header=TRUE)
+
+#clean data remvove NA and DIV/0
+training[training == ""] <- NA
+training[training == "#DIV/0!"] <- NA
+training <- training[,colSums(is.na(training)) == 0]
+```
+
+2. The dataset is tidied further by removing the variables "X","user_name" and timestamps. Variables which are zero covariates are also removed.
+
+```{r eval=FALSE}
+#Remove zero covariates
+nearZeroVar(training,saveMetrics=TRUE)
+#new_window variable can be removed from above
+
+#remove X, username and timestamps
+training_subset <- training[,c(-1,-2,-3,-4,-5,-6)]
+````
+
+3. Partition data into mini dataset for exploratory purpose.
+
+```{r eval=FALSE}
+#split training set into smaller set 
+inTrain <- createDataPartition(y=training_subset$classe,p=0.05,list=FALSE)
+trainingvalidate <- training_subset[-inTrain,]
+trainingsplit <- training_subset[inTrain,]
+```
+
+4. Create exploratory model
+```{r eval=FALSE}
+fitmodel <- train(classe ~ .,data=trainingsplit,method="rf",prox=TRUE,trControl=trainControl(preProcOptions=list(k=3)))
+
+```
+
+5. Find the top important predictors.
+```{r eval=FALSE}
+#find important variables
+varImp(fitmodel)
+```
+
+6. Create bigger training set. Because of computing restraints the raw data is partitioned to 40% for training set.
+
+```{r eval=FALSE}
+#split raw data into training set and validation set  
+inTrain <- createDataPartition(y=training_subset$classe,p=0.40,list=FALSE)
+trainingvalidate <- training_subset[-inTrain,]
+trainingsplit <- training_subset[inTrain,]
+```
+
+6. Fine tune the model by repeating step 4 and 5 and removing unimportant predictor. The final chosen predictor as below:
+```{r eval=FALSE}
+#Chosen model
+fitmodel <- train(classe ~ num_window + roll_belt + pitch_forearm + magnet_dumbbell_z + magnet_dumbbell_y + yaw_belt + pitch_belt,data=trainingsplit,method="rf",prox=TRUE,trControl=trainControl(preProcOptions=list(k=3)))
+```
+
+7. Run on validation set
+```{r eval=FALSE}
+#Predict validation dataset with training model
+predvalidate <- predict(fitmodel,trainingvalidate)
+#See how many mispredicted
+table(predvalidate,trainingvalidate$classe)
+```
++--------------+-----+-----+-----+-----+----+
+|predvalidate  |  A  |  B  |  C  |  D  |  E |
++--------------+-----+-----+-----+-----+----+
+|A             |3345 |  1  | 0   |  0  |  0 | 
++--------------+-----+-----+-----+-----+----+
+|B             |3    |2264 |4    |2    |4   |
++--------------+-----+-----+-----+-----+----+
+|C             |0    |12   |2049 |  3  |  0 |
++--------------+-----+-----+-----+-----+----+
+|D             |0    |1    |0    |1924 |  5 |
++--------------+-----+-----+-----+-----+----+
+|E             |0    |  0  |  0  |   0 |2155|
++--------------+-----+-----+-----+-----+----+
+
+From the table above 0.17 percent of the outcome has been mispredicted.
+
+The accuracy of the chosen model is 99 percent:
+
+**Random Forest**
+
+**7850 samples**
+  **53 predictor**
+   **5 classes: 'A', 'B', 'C', 'D', 'E'** 
+
+**No pre-processing**
+**Resampling: Bootstrapped (25 reps)** 
+
+**Summary of sample sizes: 7850, 7850, 7850, 7850, 7850, 7850, ...** 
+
+**Resampling results across tuning parameters:**
+
++-----------+---------------+---------------+------------------+-----------------+
+|  **mtry** |  **Accuracy** |  **Kappa**    |  **Accuracy SD** |  **Kappa SD**   | 
++-----------+---------------+---------------+------------------+-----------------+
+|  **2**    | **0.9932145** |**0.9914094**  |  **0.001642673** | **0.002080360** |
++-----------+---------------+---------------+------------------+-----------------+
+|  **4**    | **0.9926201** | **0.9906575** | **0.002101274**  | **0.002657833** |
++-----------+---------------+---------------+------------------+-----------------+
+|  **7**    | **0.9885686** | **0.9855256** | **0.003106409**  | **0.003936698** |
++-----------+---------------+---------------+------------------+-----------------+
+
+**Accuracy was used to select the optimal model using  the largest value.**
+**The final value used for the model was mtry = 2. ** 
+
+8. Run on testing set to predict exercise manner
+```{r eval=FALSE}
+answers <- predict(fitmodel,testing)
+```
+
+9. Submit answer to coursera website.
